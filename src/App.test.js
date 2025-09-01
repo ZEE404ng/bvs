@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import App from '../app'; // Fixed import path
+import Appp from '../App'; // Fixed import path
 
 // Mock ethers to avoid web3 issues in tests
 jest.mock('ethers', () => ({
