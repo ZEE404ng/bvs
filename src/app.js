@@ -224,7 +224,7 @@ function App() {
     <div className="App">
       <header className="app-header">
         <div className="header-content">
-          <h1>🗳️ Blockchain Voting System</h1>
+          <h1>🗳️ <span class = "TRIAL">Blockchain</span> Voting <span class = "TRIAL">System</span></h1>
           <p>Secure • Transparent • Decentralized</p>
         </div>
         <WalletConnection 
@@ -342,8 +342,8 @@ function App() {
       {!account && !connectionError && (
         <div className="welcome-container">
           <div className="welcome-content">
-            <h2>Welcome to the Blockchain Voting System</h2>
-            <p>Connect your MetaMask wallet to participate in secure, transparent voting.</p>
+            <h2>Welcome to the Nigerian Blockchain Voting System</h2>
+            <p>Connect any Ethereum based wallet to participate in secure, transparent voting, using Blockchain technology</p>
             <div className="features-list">
               <div className="feature-item">
                 <span className="feature-icon">🔒</span>
