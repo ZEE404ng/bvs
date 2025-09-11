@@ -243,6 +243,7 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
       <style jsx>{`
         .voting-panel {
           width: 100%;
+          
         }
 
         .panel-header {

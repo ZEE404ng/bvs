@@ -20,12 +20,14 @@ async function main() {
   
   console.log("✅ VotingSystem deployed to:", contractAddress);
   console.log("🔑 Deployed by:", ownerAddress);
+  //last updated 11th september
   
   // Add some sample candidates
   console.log("\n🗳️  Adding sample candidates...");
-  await votingSystem.addCandidate("Alawaye Raheem", "Experienced leader focused on education reform");
+  await votingSystem.addCandidate("Ugbonna Prince", "Experienced leader focused on education reform");
+  await votingSystem.addCandidate("Zainab Abdulwahab", "New Monet with a philantropic side and a love for justice");
   await votingSystem.addCandidate("Basit Adetunde", "Tech entrepreneur promoting digital innovation");
-  await votingSystem.addCandidate("Chrsitiana omologun", "Community organizer advocating for social justice");
+  await votingSystem.addCandidate("Ngbede Comfort", "Community organizer advocating for social justice");
   
   console.log("✅ Sample candidates added!");
   
