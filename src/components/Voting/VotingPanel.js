@@ -1,6 +1,16 @@
+// src/components/Voting/VotingPanel.js (UPDATED VERSION)
+
 import React, { useState, useEffect } from 'react';
 
-const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
+const VotingPanel = ({ 
+  contract, 
+  account, 
+  isVotingActive, 
+  onVoteSuccess,
+  // NEW: Fraud detection props
+  onVote,
+  fraudDetectionEnabled = false
+}) => {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
@@ -43,36 +53,57 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
     }
   };
 
+  // UPDATED: Use fraud detection if available, fallback to original method
   const handleVote = async (candidateId) => {
     if (!contract || !account) return;
     
+    setVoting(true);
+    setError('');
+    setSuccess('');
+    
     try {
-      setVoting(true);
-      setError('');
-      setSuccess('');
+      // Find candidate name
+      const candidate = candidates.find(c => Number(c.id) === candidateId);
+      const candidateName = candidate ? candidate.name : `Candidate ${candidateId}`;
       
-      console.log(`Voting for candidate ${candidateId}...`);
-      
-      // Call the vote function
-      const tx = await contract.vote(candidateId);
-      
-      setSuccess('Transaction submitted! Waiting for confirmation...');
-      
-      // Wait for transaction confirmation
-      const receipt = await tx.wait();
-      
-      console.log('Vote transaction confirmed:', receipt);
-      
-      // Update local state
-      setHasVoted(true);
-      setSuccess('Vote cast successfully! 🎉');
-      
-      // Reload data
-      await loadCandidates();
-      
-      // Notify parent component
-      if (onVoteSuccess) {
-        onVoteSuccess();
+      // Use fraud detection handler if available
+      if (onVote && typeof onVote === 'function') {
+        console.log('🛡️ Using fraud detection voting handler');
+        await onVote(candidateId, candidateName);
+        
+        // Update local state after successful vote
+        setHasVoted(true);
+        setSuccess(`Vote cast successfully for ${candidateName}! 🎉`);
+        
+        // Reload data
+        await loadCandidates();
+        
+        // Notify parent component
+        if (onVoteSuccess) {
+          onVoteSuccess();
+        }
+        
+      } else {
+        // Fallback to original voting method
+        console.log('📝 Using standard voting handler');
+        
+        const tx = await contract.vote(candidateId);
+        setSuccess('Transaction submitted! Waiting for confirmation...');
+        
+        const receipt = await tx.wait();
+        console.log('Vote transaction confirmed:', receipt);
+        
+        // Update local state
+        setHasVoted(true);
+        setSuccess(`Vote cast successfully for ${candidateName}! 🎉`);
+        
+        // Reload data
+        await loadCandidates();
+        
+        // Notify parent component
+        if (onVoteSuccess) {
+          onVoteSuccess();
+        }
       }
       
     } catch (error) {
@@ -145,6 +176,11 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
         <div className="alert alert-success">
           <h3>✅ Thank You for Voting!</h3>
           <p>Your vote has been recorded on the blockchain. You can view the current results in the Results tab.</p>
+          {fraudDetectionEnabled && (
+            <div className="fraud-protection-notice">
+              <p><small>🛡️ Your vote was protected by AI fraud detection</small></p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -166,6 +202,15 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
       <div className="panel-header">
         <h2>🗳️ Cast Your Vote</h2>
         <p>Select your preferred candidate below. Your vote will be permanently recorded on the blockchain.</p>
+        {/* NEW: Fraud protection indicator */}
+        {fraudDetectionEnabled && (
+          <div className="fraud-protection-indicator">
+            <span className="protection-badge">
+              🛡️ AI Fraud Protection Active
+            </span>
+            <small>Your vote will be analyzed for suspicious patterns before submission</small>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -199,41 +244,58 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
             <button
               className="btn btn-primary vote-button"
               onClick={() => confirmVote(candidate)}
-              disabled={voting}
+              disabled={voting || hasVoted}
               style={{ width: '100%', marginTop: '1rem' }}
             >
               {voting ? (
                 <>
                   <span className="loading-spinner"></span>
-                  Voting...
+                  {fraudDetectionEnabled ? 'Analyzing & Voting...' : 'Voting...'}
                 </>
               ) : (
-                `Vote for ${candidate.name}`
+                <>
+                  Vote for {candidate.name}
+                  {fraudDetectionEnabled && <span className="fraud-shield">🛡️</span>}
+                </>
               )}
             </button>
           </div>
         ))}
       </div>
 
-      {/* Confirmation Modal */}
+      {/* Enhanced Confirmation Modal */}
       {selectedCandidate && (
         <div className="modal-overlay">
           <div className="modal-content">
             <h3>🗳️ Confirm Your Vote</h3>
-            <p>
-              You are about to vote for <strong>{selectedCandidate.name}</strong>.
-              This action cannot be undone.
-            </p>
-            <p style={{ fontSize: '0.9rem', opacity: '0.8' }}>
-              Your vote will be recorded on the blockchain and will incur a small gas fee.
-            </p>
+            <div className="vote-confirmation">
+              <div className="candidate-preview">
+                <h4>{selectedCandidate.name}</h4>
+                <p>{selectedCandidate.description}</p>
+              </div>
+              
+              <div className="confirmation-warnings">
+                <p><strong>⚠️ Important:</strong> This action cannot be undone.</p>
+                <p>Your vote will be recorded on the blockchain and will incur a small gas fee.</p>
+                
+                {fraudDetectionEnabled && (
+                  <div className="fraud-detection-notice">
+                    <p>🛡️ <strong>Fraud Protection:</strong> Your vote will be analyzed for suspicious patterns before submission.</p>
+                  </div>
+                )}
+              </div>
+            </div>
             
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={cancelVote}>
                 Cancel
               </button>
-              <button className="btn btn-primary" onClick={proceedWithVote}>
-                Confirm Vote
+              <button 
+                className="btn btn-primary" 
+                onClick={proceedWithVote}
+                disabled={voting}
+              >
+                {voting ? 'Processing...' : 'Confirm Vote'}
               </button>
             </div>
           </div>
@@ -243,7 +305,6 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
       <style jsx>{`
         .voting-panel {
           width: 100%;
-          
         }
 
         .panel-header {
@@ -258,6 +319,32 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
         .panel-header p {
           opacity: 0.8;
           font-size: 1rem;
+          margin-bottom: 1rem;
+        }
+
+        .fraud-protection-indicator {
+          background: rgba(76, 175, 80, 0.1);
+          border: 1px solid rgba(76, 175, 80, 0.3);
+          border-radius: 8px;
+          padding: 1rem;
+          margin-top: 1rem;
+          text-align: left;
+        }
+
+        .protection-badge {
+          background: linear-gradient(45deg, #4caf50, #8bc34a);
+          color: white;
+          padding: 0.25rem 0.75rem;
+          border-radius: 20px;
+          font-size: 0.8rem;
+          font-weight: bold;
+          display: inline-block;
+          margin-bottom: 0.5rem;
+        }
+
+        .fraud-protection-indicator small {
+          opacity: 0.8;
+          font-size: 0.9rem;
         }
 
         .candidates-grid {
@@ -329,6 +416,15 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
           font-weight: 500;
         }
 
+        .vote-button {
+          position: relative;
+        }
+
+        .fraud-shield {
+          margin-left: 0.5rem;
+          opacity: 0.7;
+        }
+
         .vote-button:hover {
           background: linear-gradient(45deg, #5a6fd8, #6b42a3);
         }
@@ -351,17 +447,53 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
           padding: 2rem;
           border-radius: 12px;
           border: 1px solid rgba(255, 255, 255, 0.2);
-          max-width: 400px;
+          max-width: 500px;
           width: 90%;
           text-align: center;
         }
 
         .modal-content h3 {
+          margin-bottom: 1.5rem;
+        }
+
+        .vote-confirmation {
+          text-align: left;
+          margin-bottom: 2rem;
+        }
+
+        .candidate-preview {
+          background: rgba(255, 255, 255, 0.1);
+          padding: 1rem;
+          border-radius: 8px;
           margin-bottom: 1rem;
         }
 
-        .modal-content p {
-          margin-bottom: 1rem;
+        .candidate-preview h4 {
+          margin: 0 0 0.5rem 0;
+          color: #4caf50;
+        }
+
+        .candidate-preview p {
+          margin: 0;
+          opacity: 0.9;
+        }
+
+        .confirmation-warnings p {
+          margin: 0.75rem 0;
+          font-size: 0.9rem;
+        }
+
+        .fraud-detection-notice {
+          background: rgba(76, 175, 80, 0.1);
+          border-left: 3px solid #4caf50;
+          padding: 0.75rem;
+          margin-top: 1rem;
+          border-radius: 0 6px 6px 0;
+        }
+
+        .fraud-detection-notice p {
+          margin: 0 !important;
+          color: #4caf50;
         }
 
         .modal-actions {
@@ -369,6 +501,18 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
           gap: 1rem;
           justify-content: center;
           margin-top: 1.5rem;
+        }
+
+        .fraud-protection-notice {
+          margin-top: 1rem;
+          padding: 0.5rem;
+          background: rgba(76, 175, 80, 0.1);
+          border-radius: 6px;
+          border-left: 3px solid #4caf50;
+        }
+
+        .fraud-protection-notice small {
+          color: #4caf50;
         }
 
         @media (max-width: 768px) {
@@ -384,6 +528,77 @@ const VotingPanel = ({ contract, account, isVotingActive, onVoteSuccess }) => {
           .modal-actions {
             flex-direction: column;
           }
+
+          .fraud-protection-indicator {
+            text-align: center;
+          }
+        }
+
+        .alert {
+          padding: 1rem;
+          border-radius: 8px;
+          margin-bottom: 1rem;
+          border: 1px solid;
+        }
+
+        .alert-success {
+          background: rgba(76, 175, 80, 0.1);
+          border-color: rgba(76, 175, 80, 0.3);
+          color: #4caf50;
+        }
+
+        .alert-error {
+          background: rgba(244, 67, 54, 0.1);
+          border-color: rgba(244, 67, 54, 0.3);
+          color: #f44336;
+        }
+
+        .alert-warning {
+          background: rgba(255, 152, 0, 0.1);
+          border-color: rgba(255, 152, 0, 0.3);
+          color: #ff9800;
+        }
+
+        .loading-spinner {
+          display: inline-block;
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top-color: white;
+          animation: spin 1s ease-in-out infinite;
+          margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .btn {
+          padding: 0.75rem 1.5rem;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 1rem;
+        }
+
+        .btn-primary {
+          background: linear-gradient(45deg, #667eea, #764ba2);
+          color: white;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary {
+          background: rgba(255, 255, 255, 0.1);
+          color: white;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

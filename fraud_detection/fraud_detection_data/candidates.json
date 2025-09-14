@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "name": "Ugbonna Prince",
+    "party": "All Progressives Congress (APC)"
+  },
+  {
+    "id": 2,
+    "name": "Zainab Abdulwahab",
+    "party": "Peoples Democratic Party (PDP)"
+  },
+  {
+    "id": 3,
+    "name": "Basit Adetunde",
+    "party": "Labour Party (LP)"
+  },
+  {
+    "id": 4,
+    "name": "Ngbede Comfort",
+    "party": "New Nigeria Peoples Party (NNPP)"
+  },
+  {
+    "id": 5,
+    "name": "Adebayo Olumide",
+    "party": "African Democratic Congress (ADC)"
+  }
+]

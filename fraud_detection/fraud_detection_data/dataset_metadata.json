@@ -1,0 +1,43 @@
+{
+  "generation_date": "2025-09-14T18:14:30.326073",
+  "total_votes": 40000,
+  "total_voters": 50000,
+  "fraud_votes": 2400,
+  "fraud_rate": 0.06,
+  "candidates": [
+    {
+      "id": 1,
+      "name": "Ugbonna Prince",
+      "party": "All Progressives Congress (APC)"
+    },
+    {
+      "id": 2,
+      "name": "Zainab Abdulwahab",
+      "party": "Peoples Democratic Party (PDP)"
+    },
+    {
+      "id": 3,
+      "name": "Basit Adetunde",
+      "party": "Labour Party (LP)"
+    },
+    {
+      "id": 4,
+      "name": "Ngbede Comfort",
+      "party": "New Nigeria Peoples Party (NNPP)"
+    },
+    {
+      "id": 5,
+      "name": "Adebayo Olumide",
+      "party": "African Democratic Congress (ADC)"
+    }
+  ],
+  "total_locations": 100,
+  "fraud_types": {
+    "vote_buying": 433,
+    "time_manipulation": 412,
+    "ballot_stuffing": 407,
+    "location_fraud": 398,
+    "ghost_voting": 386,
+    "multiple_voting": 364
+  }
+}

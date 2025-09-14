@@ -9,7 +9,7 @@ npm start: starts the development server
 
 the rpc that needs to be added in order to be used is the private development server
 Name: Localhost 8485
-default rpc url: ~127.0.0.1:8545
+default rpc url: https://127.0.0.1:8545
 Chain id: 1337
 Once added, it can then be connected to the website, otherwise it will not connect and will keep showing a connection error
 

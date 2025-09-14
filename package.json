@@ -7,6 +7,9 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:with-fraud": "concurrently \"npm start\" \"python scripts/start_fraud_detection.py\"",
+    "setup:fraud": "cd fraud_detection && python setup_and_train.py",
+    "fraud:api": "cd fraud_detection && python realtime_api.py",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",

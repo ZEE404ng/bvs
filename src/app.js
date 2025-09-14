@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import './App.css';
 
-// Import components
+// Import components (existing)
 import WalletConnection from './components/WalletConnection';
 import AdminPanel from './components/Admin/AdminPanel';
 import VotingPanel from './components/Voting/VotingPanel';
 import ResultsPanel from './components/Results/ResultsPanel';
+
+// Import fraud detection component (NEW)
+import FraudDetectionPanel from './components/FraudDetection/FraudDetectionPanel';
 
 // Try to load deployment info, fallback to hardcoded address
 let CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; // Default fallback
@@ -41,8 +44,88 @@ try {
   console.log('No deployment file found, using fallback address');
 }
 
+// NEW: Fraud Detection Utility Functions
+const getUserIP = async () => {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.error('Failed to get IP:', error);
+    return '127.0.0.1'; // Fallback
+  }
+};
+
+const getDeviceFingerprint = () => {
+  try {
+    // Simple device fingerprinting
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.fillText('Device fingerprint', 2, 2);
+    
+    const fingerprint = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      new Date().getTimezoneOffset(),
+      canvas.toDataURL()
+    ].join('|');
+    
+    // Create simple hash
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    return Math.abs(hash).toString(36);
+  } catch (error) {
+    console.error('Device fingerprinting failed:', error);
+    return 'unknown_device';
+  }
+};
+
+// NEW: Fraud Detection API Functions
+const analyzeFraudBeforeVoting = async (voteData) => {
+  try {
+    console.log('🔍 Analyzing vote for fraud patterns...');
+    
+    const response = await fetch('http://127.0.0.1:8001/analyze-vote', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(voteData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    console.log('✅ Fraud analysis completed:', result);
+    return result;
+    
+  } catch (error) {
+    console.warn('⚠️ Fraud detection service unavailable:', error.message);
+    // Return safe defaults if fraud detection fails
+    return {
+      vote_id: voteData.vote_id,
+      is_fraud: false,
+      fraud_probability: 0.0,
+      confidence: 'unavailable',
+      fraud_indicators: [],
+      error: error.message
+    };
+  }
+};
+
 function App() {
-  // State management
+  // Existing state management
   const [account, setAccount] = useState('');
   const [contract, setContract] = useState(null);
   const [provider, setProvider] = useState(null);
@@ -57,7 +140,37 @@ function App() {
   });
   const [connectionError, setConnectionError] = useState('');
 
-  // Initialize web3 connection
+  // NEW: Fraud Detection State
+  const [sessionStartTime] = useState(Date.now());
+  const [fraudDetectionEnabled, setFraudDetectionEnabled] = useState(true);
+  const [fraudStats, setFraudStats] = useState({
+    totalAlertsToday: 0,
+    systemStatus: 'checking'
+  });
+
+  // NEW: Check Fraud Detection System Status
+  const checkFraudDetectionStatus = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8001/stats');
+      if (response.ok) {
+        const stats = await response.json();
+        setFraudStats({
+          totalAlertsToday: stats.total_alerts || 0,
+          systemStatus: stats.model_loaded ? 'active' : 'inactive'
+        });
+        setFraudDetectionEnabled(true);
+      }
+    } catch (error) {
+      console.log('Fraud detection system not available');
+      setFraudStats({
+        totalAlertsToday: 0,
+        systemStatus: 'unavailable'
+      });
+      setFraudDetectionEnabled(false);
+    }
+  };
+
+  // Initialize web3 connection (EXISTING FUNCTION - UNCHANGED)
   const initializeWeb3 = async () => {
     if (typeof window.ethereum !== 'undefined') {
       try {
@@ -132,7 +245,7 @@ function App() {
     }
   };
 
-  // Load contract statistics
+  // Load contract statistics (EXISTING FUNCTION - UNCHANGED)
   const loadContractStats = async (contractInstance = contract) => {
     if (!contractInstance) return;
     
@@ -153,7 +266,121 @@ function App() {
     }
   };
 
-  // Handle account changes
+  // NEW: Enhanced Vote Handler with Fraud Detection
+  const handleVoteWithFraudDetection = async (candidateId, candidateName = 'Unknown') => {
+    if (!contract || !account) return;
+    
+    try {
+      setLoading(true);
+      
+      // Generate unique vote ID
+      const voteId = `VOTE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Prepare vote data for fraud analysis
+      const voteData = {
+        vote_id: voteId,
+        voter_id: account,
+        candidate_id: candidateId,
+        location_id: 1, // Default location - you can make this dynamic
+        timestamp: new Date().toISOString(),
+        voting_method: 'electronic',
+        ip_address: await getUserIP(),
+        session_duration: Math.floor((Date.now() - sessionStartTime) / 1000),
+        device_fingerprint: getDeviceFingerprint(),
+        transaction_hash: '' // Will be filled after blockchain transaction
+      };
+      
+      console.log(`🗳️ Voting for ${candidateName} (ID: ${candidateId})`);
+      
+      // Analyze for fraud if system is available
+      if (fraudDetectionEnabled) {
+        console.log('🔍 Running fraud detection analysis...');
+        
+        const fraudResult = await analyzeFraudBeforeVoting(voteData);
+        
+        if (fraudResult && !fraudResult.error) {
+          const fraudProbability = fraudResult.fraud_probability || 0;
+          const indicators = fraudResult.fraud_indicators || [];
+          
+          console.log(`📊 Fraud analysis result: ${(fraudProbability * 100).toFixed(1)}% fraud probability`);
+          
+          // Show fraud warning for medium to high probability
+          if (fraudProbability > 0.5) {
+            const severityLevel = fraudProbability > 0.8 ? 'HIGH' : 'MEDIUM';
+            const indicatorText = indicators.length > 0 ? `\n\nReasons:\n• ${indicators.join('\n• ')}` : '';
+            
+            const warningMessage = `⚠️ FRAUD ALERT - ${severityLevel} RISK\n\nThis vote has been flagged as potentially suspicious:\n\n🚨 Fraud Probability: ${(fraudProbability * 100).toFixed(1)}%${indicatorText}\n\nThis could be due to:\n• Multiple voting attempts\n• Unusual timing or location\n• Network-based irregularities\n\nDo you want to proceed with voting anyway?`;
+            
+            if (!window.confirm(warningMessage)) {
+              console.log('❌ Vote cancelled by user due to fraud warning');
+              return;
+            }
+          }
+          
+          // Block vote if extremely high fraud probability
+          if (fraudProbability > 0.9) {
+            const blockMessage = `🚫 VOTE BLOCKED\n\nThis vote has been automatically blocked due to very high fraud probability (${(fraudProbability * 100).toFixed(1)}%).\n\nReasons: ${indicators.join(', ')}\n\nIf you believe this is an error, please contact the election administrator.`;
+            alert(blockMessage);
+            console.log('🚫 Vote blocked due to high fraud probability');
+            return;
+          }
+          
+          // Log successful fraud check
+          if (fraudProbability < 0.3) {
+            console.log('✅ Vote passed fraud detection checks');
+          }
+        }
+      }
+      
+      console.log('🔗 Submitting vote to blockchain...');
+      
+      // Proceed with blockchain transaction
+      const tx = await contract.vote(candidateId);
+      console.log('📤 Transaction submitted:', tx.hash);
+      
+      // Wait for confirmation
+      const receipt = await tx.wait();
+      console.log('✅ Transaction confirmed:', receipt.hash);
+      
+      // Update vote data with transaction hash for final logging
+      if (fraudDetectionEnabled) {
+        voteData.transaction_hash = receipt.hash;
+        // Optionally log the successful vote (don't await to avoid blocking UI)
+        analyzeFraudBeforeVoting(voteData).catch(console.warn);
+      }
+      
+      // Update UI state
+      await loadContractStats();
+      
+      // Success message
+      alert(`✅ Vote Successfully Cast!\n\nCandidate: ${candidateName}\nTransaction: ${receipt.hash}\nBlock: ${receipt.blockNumber}`);
+      
+    } catch (error) {
+      console.error('❌ Voting error:', error);
+      
+      let errorMessage = 'Failed to cast vote. ';
+      
+      if (error.reason) {
+        errorMessage += error.reason;
+      } else if (error.message) {
+        if (error.message.includes('user rejected')) {
+          errorMessage += 'Transaction was cancelled by user.';
+        } else if (error.message.includes('already voted')) {
+          errorMessage += 'You have already voted in this election.';
+        } else if (error.message.includes('not active')) {
+          errorMessage += 'Voting is currently not active.';
+        } else {
+          errorMessage += 'Please try again or contact support.';
+        }
+      }
+      
+      alert(`❌ Voting Failed\n\n${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle account changes (EXISTING - UNCHANGED)
   useEffect(() => {
     if (window.ethereum) {
       const handleAccountsChanged = (accounts) => {
@@ -188,7 +415,7 @@ function App() {
     }
   }, []);
 
-  // Auto-connect if previously connected
+  // Auto-connect and check fraud detection status (ENHANCED)
   useEffect(() => {
     const checkConnection = async () => {
       if (window.ethereum) {
@@ -204,15 +431,22 @@ function App() {
       }
     };
 
+    // Check both blockchain and fraud detection status
     checkConnection();
+    checkFraudDetectionStatus();
+
+    // Recheck fraud detection status every 30 seconds
+    const fraudCheckInterval = setInterval(checkFraudDetectionStatus, 30000);
+    
+    return () => clearInterval(fraudCheckInterval);
   }, []);
 
-  // Refresh data function
+  // Refresh data function (EXISTING - UNCHANGED)
   const refreshData = async () => {
     await loadContractStats();
   };
 
-  // Network info
+  // Network info (EXISTING - UNCHANGED)
   const getNetworkInfo = () => {
     return {
       contractAddress: CONTRACT_ADDRESS,
@@ -224,15 +458,27 @@ function App() {
     <div className="App">
       <header className="app-header">
         <div className="header-content">
-          <h1>🗳️ <span class = "TRIAL">Blockchain</span> Voting <span class = "TRIAL">System</span></h1>
-          <p>Secure • Transparent • Decentralized</p>
+          <h1>🗳️ <span className="TRIAL">Blockchain</span> Voting <span className="TRIAL">System</span></h1>
+          <p>Secure • Transparent • Decentralized {fraudDetectionEnabled && '• Fraud Protected'}</p>
         </div>
-        <WalletConnection 
-          account={account} 
-          onConnect={initializeWeb3}
-          loading={loading}
-          error={connectionError}
-        />
+        <div className="header-controls">
+          <WalletConnection 
+            account={account} 
+            onConnect={initializeWeb3}
+            loading={loading}
+            error={connectionError}
+          />
+          {/* NEW: Fraud Detection Status Indicator */}
+          {!isOwner && account && (
+            <div className="fraud-status-mini">
+              <span className={`status-dot ${fraudStats.systemStatus}`}></span>
+              <span className="status-text">
+                {fraudStats.systemStatus === 'active' ? 'Protected' : 
+                 fraudStats.systemStatus === 'inactive' ? 'Limited Protection' : 'Checking...'}
+              </span>
+            </div>
+          )}
+        </div>
       </header>
 
       {connectionError && !account && (
@@ -263,6 +509,9 @@ function App() {
             <small>
               Connected to contract: <code>{getNetworkInfo().contractAddress}</code>
               {isOwner && <span className="owner-badge">👑 Owner</span>}
+              {fraudDetectionEnabled && (
+                <span className="fraud-badge">🛡️ Fraud Detection Active</span>
+              )}
             </small>
           </div>
 
@@ -284,6 +533,13 @@ function App() {
               </h3>
               <p>Voting Status</p>
             </div>
+            {/* NEW: Fraud Detection Stats */}
+            {fraudDetectionEnabled && (
+              <div className="stat-card">
+                <h3>{fraudStats.totalAlertsToday}</h3>
+                <p>Fraud Alerts Today</p>
+              </div>
+            )}
           </div>
 
           {/* Navigation Tabs */}
@@ -301,12 +557,21 @@ function App() {
               📊 Results
             </button>
             {isOwner && (
-              <button 
-                className={`tab-button ${activeTab === 'admin' ? 'active' : ''}`}
-                onClick={() => setActiveTab('admin')}
-              >
-                ⚙️ Admin
-              </button>
+              <>
+                <button 
+                  className={`tab-button ${activeTab === 'admin' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('admin')}
+                >
+                  ⚙️ Admin
+                </button>
+                {/* NEW: Fraud Detection Tab for Admins */}
+                <button 
+                  className={`tab-button ${activeTab === 'fraud' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('fraud')}
+                >
+                  🛡️ Fraud Detection
+                </button>
+              </>
             )}
           </div>
 
@@ -318,6 +583,9 @@ function App() {
                 account={account}
                 isVotingActive={contractStats.isVotingActive}
                 onVoteSuccess={refreshData}
+                // NEW: Pass fraud detection handler
+                onVote={handleVoteWithFraudDetection}
+                fraudDetectionEnabled={fraudDetectionEnabled}
               />
             )}
             
@@ -333,6 +601,15 @@ function App() {
                 contract={contract}
                 isVotingActive={contractStats.isVotingActive}
                 onUpdate={refreshData}
+              />
+            )}
+            
+            {/* NEW: Fraud Detection Panel for Admins */}
+            {activeTab === 'fraud' && isOwner && (
+              <FraudDetectionPanel 
+                isAdmin={true}
+                fraudDetectionEnabled={fraudDetectionEnabled}
+                onRefreshStatus={checkFraudDetectionStatus}
               />
             )}
           </div>
@@ -366,11 +643,12 @@ function App() {
                   <p>All voting activity is publicly verifiable</p>
                 </div>
               </div>
+              {/* NEW: Fraud Detection Feature */}
               <div className="feature-item">
                 <span className="feature-icon">🛡️</span>
                 <div>
-                  <h4>Fraud Detection</h4>
-                  <p>Advanced algorithms monitor for suspicious activity</p>
+                  <h4>AI Fraud Detection</h4>
+                  <p>Advanced machine learning monitors for suspicious voting patterns</p>
                 </div>
               </div>
             </div>
@@ -383,11 +661,58 @@ function App() {
         <p>
           <small>
             Smart Contract: <code>{CONTRACT_ADDRESS}</code>
+            {fraudDetectionEnabled && <span> • Fraud Detection: Active 🛡️</span>}
           </small>
         </p>
       </footer>
 
+      {/* NEW: Additional Styles for Fraud Detection */}
       <style jsx>{`
+        .header-controls {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .fraud-status-mini {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 1rem;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 20px;
+          font-size: 0.8rem;
+        }
+
+        .status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+
+        .status-dot.active {
+          background: #4caf50;
+          animation: pulse 2s infinite;
+        }
+
+        .status-dot.inactive {
+          background: #ff9800;
+        }
+
+        .status-dot.unavailable {
+          background: #f44336;
+        }
+
+        .fraud-badge {
+          margin-left: 1rem;
+          background: linear-gradient(45deg, #4caf50, #8bc34a);
+          color: white;
+          padding: 0.25rem 0.5rem;
+          border-radius: 12px;
+          font-size: 0.8rem;
+          font-weight: bold;
+        }
+
         .network-info {
           text-align: center;
           margin-bottom: 1rem;
@@ -447,6 +772,23 @@ function App() {
           margin: 0;
           opacity: 0.8;
           font-size: 0.9rem;
+        }
+
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+          .header-controls {
+            flex-direction: column;
+            gap: 0.5rem;
+          }
+
+          .fraud-status-mini {
+            display: none; /* Hide on mobile for space */
+          }
         }
       `}</style>
     </div>

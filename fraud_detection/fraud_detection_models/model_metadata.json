@@ -1,0 +1,26 @@
+{
+  "feature_columns": [
+    "hour",
+    "day_of_week",
+    "minute",
+    "is_weekend",
+    "session_duration",
+    "session_z_score",
+    "time_diff_prev",
+    "votes_same_ip",
+    "votes_same_location",
+    "votes_same_device",
+    "votes_same_voter",
+    "votes_same_hour_location",
+    "location_utilization_rate",
+    "candidate_popularity",
+    "voting_against_trend",
+    "ip_vote_count",
+    "ip_candidate_variety",
+    "location_total_votes",
+    "location_avg_session",
+    "voting_method_encoded"
+  ],
+  "training_date": "2025-09-14T18:14:36.534991",
+  "model_version": "1.0"
+}
