@@ -24,10 +24,11 @@ async function main() {
   
   // Add some sample candidates
   console.log("\n🗳️  Adding sample candidates...");
-  await votingSystem.addCandidate("Ugbonna Prince", "Experienced leader focused on education reform");
+  await votingSystem.addCandidate("Ogbonna Prince", "Experienced leader focused on education reform");
   await votingSystem.addCandidate("Zainab Abdulwahab", "New Monet with a philantropic side and a love for justice");
-  await votingSystem.addCandidate("Basit Adetunde", "Tech entrepreneur promoting digital innovation");
+  await votingSystem.addCandidate("Basit Akintunde", "Tech entrepreneur promoting digital innovation");
   await votingSystem.addCandidate("Ngbede Comfort", "Community organizer advocating for social justice");
+  await votingSystem.addCandidate("Yezeed Abubakar", "All around chad, honestly the superior candidate if were being honest");
   
   console.log("✅ Sample candidates added!");
   
