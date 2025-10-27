@@ -26,5 +26,4 @@ npx hardhat run scripts/deploy.js --network localhost
 python setup_and_train.py
 python realtime_api.py
 npx hardhat run scripts/attack_simulation.js --network localhost
-                   
-                     
+npx hardhat run scripts/attack_simulation.js --network localhost
